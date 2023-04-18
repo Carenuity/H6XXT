@@ -1,4 +1,4 @@
-# Projects with Environmental Shields (CLOUDFREE!)
+# ESP32-Mini Projects with Environmental Shields (CLOUDFREE!)
 ## H6XXT
 This repository contains a collection of D1 Mini projects that utilize environmental shields, including temperature and humidity sensors, barometric pressure sensors, and more.
 
