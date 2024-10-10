@@ -1,9 +1,5 @@
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#ifndef UNIT_TEST
-#include <Arduino.h>
-#endif
+#include <U8glib.h>
 #include <IRremoteESP8266.h>
 #include <IRrecv.h>
 #include <IRutils.h>
@@ -16,75 +12,80 @@
 #include <ir_Midea.h>
 #include <ir_Toshiba.h>
 #endif  // DECODE_AC
- 
-#define RECV_PIN 6
+
+#define RECV_PIN 6  // IR receiver pin
 #define BAUD_RATE 115200
 #define CAPTURE_BUFFER_SIZE 1024
- 
- 
-#if DECODE_AC
-#define TIMEOUT 50U  
-#else  
-#define TIMEOUT 15U  // Suits most messages, while not swallowing many repeats.
-#endif  
- 
-#define MIN_UNKNOWN_SIZE 12
- 
- // SCL GPIO5
-// SDA GPIO4
 
- // Declaration for SSD1306 display connected using I2C
-#define OLED_RESET  0 // Reset pin
-#define SCREEN_ADDRESS 0x3C
-Adafruit_SSD1306 display(OLED_RESET);
+#if DECODE_AC
+#define TIMEOUT 50U  // Higher timeout for AC
+#else
+#define TIMEOUT 15U  // Default timeout
+#endif
+
+#define MIN_UNKNOWN_SIZE 12  // Minimum size for unknown signals
+
+// I2C pins
+#define SCL_PIN 10
+#define SDA_PIN 8
+
+// Initialize the U8glib library for the 64x48 OLED display
+U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE);  // Using default I2C pins
 
 // Use turn on the save buffer feature for more complete capture coverage.
 IRrecv irrecv(RECV_PIN, CAPTURE_BUFFER_SIZE, TIMEOUT, true);
- 
-decode_results results;  // Somewhere to store the results
- 
- 
-void setup() 
-{
-  Serial.begin(115200);
-  while (!Serial)  // Wait for the serial connection to be establised.
+decode_results results;  // Variable to store the IR results
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(BAUD_RATE);
+  while (!Serial) {
     delay(50);
-    
-Wire.begin();
-  display.println();
-  display.print("IRrecvDumpV2 is now running and waiting for IR input on Pin ");
-  display.println(RECV_PIN);
- 
-        // begin returns a boolean that can be used to detect setup problems.
-    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3C (for the 64x48)
- 
-#if DECODE_HASH
-  // Ignore messages with less than minimum on or off pulses.
-  irrecv.setUnknownThreshold(MIN_UNKNOWN_SIZE);
-#endif  // DECODE_HASH
+  }
+
+  // Initialize the I2C communication
+  Wire.begin(SDA_PIN, SCL_PIN);  // Use the hardcoded pins
+
+  // Display initialization message
+  u8g.firstPage();
+  do {
+    u8g.setFont(u8g_font_6x10);  // Use a readable font
+    u8g.drawStr(0, 10, "IRrecvDumpV2");
+    u8g.drawStr(0, 20, "Waiting for IR input");
+    u8g.drawStr(0, 30, "Pin 6");
+  } while (u8g.nextPage());
+
+  // Initialize the IR receiver
   irrecv.enableIRIn();  // Start the receiver
 }
- 
- 
-void loop() 
-{
-  
-// intialize by Clearing the display.
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  
-  if (irrecv.decode(&results)) 
-  {
-    // print() & println() can't handle printing long longs. (uint64_t)
-   display.setCursor(30,8);
-   display.print("IR Radiometer ");
-    display.setCursor(40,18);
-   display.setTextSize(1);
-   display.print(results.value, HEX);
-    display.println("");
-    irrecv.resume();  // Receive the next value
-    display.display();
-  }
-  delay(200);
+
+void loop() {
+  // Clear the display
+  u8g.firstPage();
+  do {
+    // Set text size and position
+    u8g.setFont(u8g_font_6x10);
+    
+    if (irrecv.decode(&results)) {
+      // Display IR received message
+      u8g.drawStr(30, 10, "IR Radiometer");
+
+      // Display the received IR value in HEX format
+      char hexValue[16];
+      sprintf(hexValue, "0x%08X", (unsigned long)results.value);  // Convert IR value to a string
+      u8g.drawStr(10, 25, hexValue);
+
+      // Resume receiving the next IR value
+      irrecv.resume();
+
+      // Print IR value to serial for debugging
+      Serial.print("IR Value: ");
+      Serial.println(hexValue);
+    } else {
+      // If no IR signal, display waiting message
+      u8g.drawStr(30, 10, "Waiting for IR");
+    }
+  } while (u8g.nextPage());
+
+  delay(200);  // Small delay for readability
 }
